@@ -1,10 +1,16 @@
 from __future__ import annotations
+
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 from typing import Optional, List, Set
 
 
 class OutOfStock(Exception):
+    pass
+
+
+class OrderNotFound(Exception):
     pass
 
 
@@ -15,6 +21,19 @@ def allocate(line: OrderLine, batches: List[Batch]) -> str:
         return batch.reference
     except StopIteration:
         raise OutOfStock(f"Out of stock for sku {line.sku}")
+
+
+def deallocate(line: OrderLine, batches: Iterable[Batch]) -> str:
+    """
+    return the batchref after deleting the order line from that batch if a batch to which this orderline was previously
+    assigned is found. Else raise an exception
+    """
+    try:
+        allocated_batch = next(batch for batch in batches if line in batch)
+        allocated_batch.deallocate(line)
+    except StopIteration:
+        raise OrderNotFound(f'{line} does not exist')
+    return allocated_batch.reference
 
 
 @dataclass(unsafe_hash=True)
@@ -68,3 +87,6 @@ class Batch:
 
     def can_allocate(self, line: OrderLine) -> bool:
         return self.sku == line.sku and self.available_quantity >= line.qty
+
+    def __contains__(self, line: OrderLine):
+        return line in self._allocations
